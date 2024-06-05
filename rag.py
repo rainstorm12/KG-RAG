@@ -271,7 +271,7 @@ class RAG_BOT:
 with gr.Blocks(title="检索增强demo", css="footer {visibility: hidden}", theme="default") as demo:
     gr.Markdown("""管廊运维""") 
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read('data/config.ini')
     neo4j_user = config['Neo4j']['user']
     neo4j_password = config['Neo4j']['password']
     llm_api_key = config['LLM']['api_key']
