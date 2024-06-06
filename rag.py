@@ -98,16 +98,15 @@ class RAG_BOT:
         entity_type = ",".join(["巡查项目","巡查内容","巡查方法","巡查周期"])
         entity_format="[实体1,实体2,实体3,...]"
         return f"\
-    说明：从给定的输入文本中提取实体，这些实体可能的类型包括“{entity_type}”,提取的实体最后以{entity_format}的格式回答。\n\
-    示例如三个反引号内所示：\n\
-    ```\n\
-    输入文本：“管道泄水及冲洗水的封堵应该怎么做？”\n\
-    输出结果：[管道,泄水及冲洗水,封堵]\n\
-    ```\n\
-    此时用户的输入文本是：“{sentence}”\n\
-    请给出输出结果。\n\
-    注意：输出结果是从用户的输入文本中提取实体,输出结果严格以{entity_format}的格式回答,不需要生成其他任何多余的内容。\
-    "
+说明：从给定的输入文本中提取实体，这些实体可能的类型包括“{entity_type}”,提取的实体最后以{entity_format}的格式回答。\n\
+示例如三个反引号内所示：\n\
+```\n\
+输入文本：“管道泄水及冲洗水的封堵应该怎么做？”\n\
+输出结果：[管道,泄水及冲洗水,封堵]\n\
+```\n\
+注意：输出结果是从用户的输入文本中提取实体,输出结果严格以{entity_format}的格式回答,不需要生成其他任何多余的内容。\n\
+此时用户的输入文本是：“{sentence}”\n\
+输出结果："
 
     def extract_entity(self,text):
         entities=[]
@@ -251,7 +250,7 @@ def create_demo(llm):
 def main():
     llm = "glm"#从这里选择模型@@@
     demo = create_demo(llm)
-    demo.launch(server_port=9006, share=True, show_api=False)
+    demo.launch(server_port=9010, share=True, show_api=False)
 
 if __name__=='__main__':
     main()
