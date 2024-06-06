@@ -16,7 +16,7 @@
 ├── img
 ├── data/
     ├── pipe/                                      (管廊标准的原始文件，这里不公开了)
-	├── config.ini                                 (密钥等配置文件)
+    ├── config.ini                                 (密钥等配置文件)
     ├── kg_entity.pt                               (知识图谱向量文件)
     ├── somuut_x.pt                                (管廊运维的向量文件)
     └── somuut.txt                                 (管廊运维的文本文件)
