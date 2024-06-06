@@ -13,12 +13,13 @@
 ```bash
 .
 ├── README.md
+├── img
 ├── data/
     ├── pipe/                                      (管廊标准的原始文件，这里不公开了)
     ├── kg_entity.pt                               (知识图谱向量文件)
     ├── somuut_x.pt                                (管廊运维的向量文件)
     └── somuut.txt                                 (管廊运维的文本文件)
-├── THUDM/chatglm2-6b-int4/                        (glm6b的模型文件，请前往chatglm官方下载)
+├── THUDM/chatglm2-6b-int4                         (glm2-6b的模型文件，请前往chatglm官方下载)
 ├── config.ini                                     (密钥等配置文件)
 ├── sim.ipynb                                      (向量相似度计算的示例)
 ├── docx2txt.py                                    (docx文件转txt预处理方法)
@@ -29,7 +30,11 @@
 
 ## 实现效果
 
-![Gradio](./img/gradio.png)
+### 单轮对话：
+
+![Gradio1](./img/RAG_SingleRound.png)
+
+### 多轮对话：![Gradio2](./img/RAG_MultiRound.png)
 
 ## 环境配置 
 
@@ -55,6 +60,10 @@ pip install torch==1.13.1+cu116 --extra-index-url https://download.pytorch.org/w
 
 其他依赖库直接用pip install 安装即可
 
+```bash
+pip install -r requirements.txt
+```
+
 **端口占用解决方案**
 
 查询对应的端口是否存在任务：
@@ -68,3 +77,9 @@ netstat -ano | findstr :9006
 ```shell
 taskkill /F /PID 1234
 ```
+
+## 相关项目
+
+> 阿里通义千问开源模型[QWEN1.5](https://github.com/QwenLM/Qwen1.5)（调用阿里云提供的api）
+>
+> [chatglm2-6b-int](https://github.com/THUDM/ChatGLM2-6B)（量化版比较方便本地部署）

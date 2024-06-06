@@ -17,12 +17,13 @@ def call_stream_with_qwen(prompt):
         output_in_full=True  # get streaming output incrementally
     )
     full_content = ''
+    past_key_values, history = None, []
     for response in responses:
         if response.status_code == HTTPStatus.OK:
             message = response.output.choices[0]['message']['content']
             # print(message[len(full_content):], end="",flush=True)
             full_content = message
-            yield prompt, full_content
+            yield prompt, full_content, past_key_values, history
         else:
             print('Request id: %s, Status code: %s, error code: %s, error message: %s' % (
                 response.request_id, response.status_code,
@@ -68,15 +69,14 @@ def glm_init():
     model = model.eval()
     return model,tokenizer
 
-def call_stream_with_glm(query,model,tokenizer):
-    past_key_values, history = None, []
+def call_stream_with_glm(query,model,tokenizer,past_key_values, history):
     current_length = 0
     for response, history, past_key_values in model.stream_chat(tokenizer, query, history=history,
                                                             past_key_values=past_key_values,
                                                             return_past_key_values=True):
         # print(response[current_length:], end="", flush=True)
-        current_length = len(response)
-        yield query, response
+        # current_length = len(response)
+        yield query, response, past_key_values, history
 
 def call_with_glm(query,model,tokenizer):
     past_key_values, history = None, []
@@ -95,11 +95,11 @@ def llm_init(llm):
         model,tokenizer = glm_init()
         return model,tokenizer
 
-def call_stream_with_messages(prompt,llm='qwen',model=None,tokenizer=None):
+def call_stream_with_messages(prompt,llm='qwen',model=None,tokenizer=None,past_key_values=None, history=[]):
     if llm=='qwen':
         yield from call_stream_with_qwen(prompt)
     elif llm=='glm':
-        yield from call_stream_with_glm(prompt,model,tokenizer)
+        yield from call_stream_with_glm(prompt,model,tokenizer,past_key_values, history)
         
 def call_with_messages(prompt,llm='qwen',model=None,tokenizer=None):
     if llm=='qwen':
