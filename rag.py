@@ -12,65 +12,7 @@ import time
 import gradio as gr
 import py2neo
 import configparser
-
-#llm api调用
-def call_stream_with_messages(prompt):
-    messages = [
-        {"role": "user", "content": prompt}]
-    responses = dashscope.Generation.call(
-        'qwen1.5-110b-chat',
-        # 'qwen1.5-32b-chat',
-        # 'qwen1.5-1.8b-chat',#free
-        messages=messages,
-        seed=random.randint(1, 10000),  # set the random seed, optional, default to 1234 if not set
-        result_format='message',  # set the result to be "message"  format.
-        stream=True,
-        output_in_full=True  # get streaming output incrementally
-    )
-    full_content = ''
-    for response in responses:
-        if response.status_code == HTTPStatus.OK:
-            message = response.output.choices[0]['message']['content']
-            # print(message[len(full_content):], end="",flush=True)
-            full_content = message
-            yield prompt, full_content
-        else:
-            print('Request id: %s, Status code: %s, error code: %s, error message: %s' % (
-                response.request_id, response.status_code,
-                response.code, response.message
-            ))
-            time.sleep(5)
-    # print('\nFull content: \n',full_content)
-    # return full_content
-
-#llm api调用
-def call_with_messages(prompt):
-    messages = [
-        {"role": "user", "content": prompt}]
-    responses = dashscope.Generation.call(
-        'qwen1.5-110b-chat',
-        # 'qwen1.5-32b-chat',
-        # 'qwen1.5-1.8b-chat',#free
-        messages=messages,
-        seed=random.randint(1, 10000),  # set the random seed, optional, default to 1234 if not set
-        result_format='message',  # set the result to be "message"  format.
-        stream=True,
-        output_in_full=True  # get streaming output incrementally
-    )
-    full_content = ''
-    for response in responses:
-        if response.status_code == HTTPStatus.OK:
-            message = response.output.choices[0]['message']['content']
-            print(message[len(full_content):], end="",flush=True)
-            full_content = message
-        else:
-            print('Request id: %s, Status code: %s, error code: %s, error message: %s' % (
-                response.request_id, response.status_code,
-                response.code, response.message
-            ))
-            time.sleep(5)
-    # print('\nFull content: \n',full_content)
-    return full_content
+from llm_api import llm_init,call_stream_with_messages,call_with_messages
 
 def list_filenames(folder_path):
     """
@@ -101,7 +43,8 @@ def list_filenames(folder_path):
 
 class RAG_BOT:
     
-    def __init__(self,document_name,top_k=5,block="bychunk",chunk_len=20,neo4j_user='neo4j',neo4j_password='neo4j'):
+    def __init__(self,llm,document_name,top_k=5,block="bychunk",chunk_len=20,neo4j_user='neo4j',neo4j_password='neo4j'):
+        self.llm = llm
         self.document_name = document_name
         self.top_k = top_k
         self.block = block
@@ -109,11 +52,12 @@ class RAG_BOT:
         self.max_kg_entity_neigh = 20 #最多查询的邻居数目
         self.max_single_entity_neigh = 10 #单一实体最多查询的邻居数目
         self.kg_neigh_topk = 2
-        self.model  = SentenceModel('shibing624/text2vec-base-chinese')
+        self.encoder_model  = SentenceModel('shibing624/text2vec-base-chinese')
         self.neo4j_graph = py2neo.Graph(
                             "http://localhost:7474", 
                             auth=(neo4j_user,neo4j_password)
                         )
+        self.llm_model,self.llm_tokenizer = llm_init(self.llm)
         self.init_rag()
         self.init_kg_entity_rag()
 
@@ -136,7 +80,7 @@ class RAG_BOT:
             self.embeddings = torch.load(vector_path)
             print("already load document vector")
         else:
-            self.embeddings = self.model.encode(self.document, convert_to_tensor=True)
+            self.embeddings = self.encoder_model.encode(self.document, convert_to_tensor=True)
             torch.save(self.embeddings, vector_path)
     
     def init_kg_entity_rag(self):
@@ -147,34 +91,38 @@ class RAG_BOT:
             self.kg_entity_embeddings = torch.load(kg_entity_vector_path)
             print("already load entity vector")
         else:
-            self.kg_entity_embeddings = self.model.encode(self.kg_entity_list, convert_to_tensor=True)
+            self.kg_entity_embeddings = self.encoder_model.encode(self.kg_entity_list, convert_to_tensor=True)
             torch.save(self.kg_entity_embeddings, kg_entity_vector_path)
 
     def prompt_entity_extraction(self,sentence):
         entity_type = ",".join(["巡查项目","巡查内容","巡查方法","巡查周期"])
-        entity_format="[实体,实体类型]"
+        entity_format="[实体1,实体2,实体3,...]"
         return f"\
-    说明：从给定的输入文本中提取可能的实体以及对应的实体类型，可选的实体类型为[{entity_type}],以{entity_format}的格式回答。\n\
+    说明：从给定的输入文本中提取实体，这些实体可能的类型包括“{entity_type}”,提取的实体最后以{entity_format}的格式回答。\n\
     示例如三个反引号内所示：\n\
     ```\n\
-    输入文本：管道泄水及冲洗水应该怎么样维修？\n\
-    输出结果：[管道,巡查项目],[泄水及冲洗水,巡查内容]\n\
+    输入文本：“管道泄水及冲洗水的封堵应该怎么做？”\n\
+    输出结果：[管道,泄水及冲洗水,封堵]\n\
     ```\n\
-    注意：“维护”、“问题”、“巡查”这种不具体的词汇不需要抽取，只需要抽取“渗漏水”、“墙面”这种具体指向的词。\n\
-    输入文本：{sentence}\n\
-    注意：你需要尽可能多地输出实体！请以{entity_format}的格式回答。\
+    此时用户的输入文本是：“{sentence}”\n\
+    请给出输出结果。\n\
+    注意：输出结果是从用户的输入文本中提取实体,输出结果严格以{entity_format}的格式回答,不需要生成其他任何多余的内容。\
     "
 
     def extract_entity(self,text):
-        entity_list = re.findall(r'\[(.*?)\]', text)
         entities=[]
+        entity_list = re.findall(r'\[(.*?)\]', text)
+        if not entity_list:
+            return entities
+        entity_list = entity_list[0].split(",")
         for entity in entity_list:
             try:
-                entity_name,entity_type = entity.split(",")
-                entity_name = entity_name.strip()
-                entity_type = entity_type.strip()
+                entity = entity.strip()
+                entity = entity.strip("'")
+                entity = entity.strip('"')
                 # if entity_name in sentence:
-                entities.append(entity_name)
+                if entity:
+                    entities.append(entity)
             except Exception as result:
                 print(result)   
         return entities
@@ -193,12 +141,16 @@ class RAG_BOT:
         return result_child+result_parent
     
     def extract_entity_neigh(self,query,extract_mode="llm"):
+        self.entity_neigh = []
         if not query:
             return None
         if extract_mode=="llm" or extract_mode=="llm+rag":
             prompt = self.prompt_entity_extraction(query)
-            full_content = call_with_messages(prompt)
+            full_content = call_with_messages(prompt,self.llm,self.llm_model,self.llm_tokenizer)
             entities = self.extract_entity(full_content)
+            #没有抽取到实体
+            if not entities:
+                return None
             result_list = []
             entity2neigh_num = {}
             for entity in entities:
@@ -220,7 +172,7 @@ class RAG_BOT:
                 kg_neigh_topk = self.kg_neigh_topk #这里只检索最语义相近的节点
                 for entity in entities:
                     if entity2neigh_num[entity]<self.max_single_entity_neigh:
-                        query_embedding = self.model.encode(entity, convert_to_tensor=True)
+                        query_embedding = self.encoder_model.encode(entity, convert_to_tensor=True)
                         sim_scores = sentence_transformers.util.cos_sim(query_embedding, self.kg_entity_embeddings)[0]
                         top_k_cat = torch.topk(sim_scores, k=kg_neigh_topk)
                         top_k_score,top_k_idx = top_k_cat[0],top_k_cat[1]
@@ -235,7 +187,7 @@ class RAG_BOT:
     def ranking_api(self,query):
         if not query: 
             return None,None,None
-        query_embedding = self.model.encode(query, convert_to_tensor=True)
+        query_embedding = self.encoder_model.encode(query, convert_to_tensor=True)
         sim_scores = sentence_transformers.util.cos_sim(query_embedding, self.embeddings)[0]
         top_k_cat = torch.topk(sim_scores, k=self.top_k)
         top_k_score,top_k_idx = top_k_cat[0],top_k_cat[1]
@@ -266,30 +218,39 @@ class RAG_BOT:
     def answer(self,query):
         self.extract_entity_neigh(query,extract_mode="llm+rag")
         self.generate_prompt(query)
-        yield from call_stream_with_messages(self.answer_prompt)
+        yield from call_stream_with_messages(self.answer_prompt,self.llm,self.llm_model,self.llm_tokenizer)
 
-with gr.Blocks(title="检索增强demo", css="footer {visibility: hidden}", theme="default") as demo:
-    gr.Markdown("""管廊运维""") 
+def config_init(llm):
     config = configparser.ConfigParser()
     config.read('data/config.ini')
     neo4j_user = config['Neo4j']['user']
     neo4j_password = config['Neo4j']['password']
-    llm_api_key = config['LLM']['api_key']
-    dashscope.api_key = llm_api_key
-    # rag_bot = RAG_BOT(document_name = 'pipe',top_k=5,block="bychunk",chunk_len=200,neo4j_user=neo4j_user,neo4j_password=neo4j_password)
-    rag_bot = RAG_BOT(document_name = 'somuut',top_k=10,block="byrow",neo4j_user=neo4j_user,neo4j_password=neo4j_password)
-    with gr.Row():
-        with gr.Column():
-            query = gr.Textbox(label="用户输入", placeholder="请输入...", max_lines=30, lines=5,interactive=True)
-            btn_answer = gr.Button("生成回答", variant="primary")
-            prompt = gr.Textbox(label="对应的Prompt", placeholder="输入后确认", max_lines=30, lines=15, interactive=True)
-        with gr.Column():
-            answer = gr.Textbox(label="AI回复", placeholder="输入后确认", max_lines=30, lines=25, interactive=True)
-        # btn_answer.click(rag_bot.generate_prompt,inputs=[query],outputs=[prompt])
-        btn_answer.click(rag_bot.answer,inputs=[query],outputs=[prompt,answer])
-    # demo.queue(concurrency_count=1000)
+    if llm == "qwen":
+        llm_api_key = config['Qwen']['api_key']
+        dashscope.api_key = llm_api_key
+    return neo4j_user,neo4j_password
+
+def create_demo(llm):
+    with gr.Blocks(title="检索增强demo", css="footer {visibility: hidden}", theme="default") as demo:
+        gr.Markdown("""管廊运维""") 
+        neo4j_user,neo4j_password = config_init(llm)
+        # rag_bot = RAG_BOT(llm = llm, document_name = 'pipe',top_k=5,block="bychunk",chunk_len=200,neo4j_user=neo4j_user,neo4j_password=neo4j_password)
+        rag_bot = RAG_BOT(llm = llm, document_name = 'somuut',top_k=10,block="byrow",neo4j_user=neo4j_user,neo4j_password=neo4j_password)
+        with gr.Row():
+            with gr.Column():
+                query = gr.Textbox(label="用户输入", placeholder="请输入...", max_lines=30, lines=5,interactive=True)
+                btn_answer = gr.Button("生成回答", variant="primary")
+                prompt = gr.Textbox(label="对应的Prompt", placeholder="输入后确认", max_lines=30, lines=15, interactive=True)
+            with gr.Column():
+                answer = gr.Textbox(label="AI回复", placeholder="输入后确认", max_lines=30, lines=25, interactive=True)
+            # btn_answer.click(rag_bot.generate_prompt,inputs=[query],outputs=[prompt])
+            btn_answer.click(rag_bot.answer,inputs=[query],outputs=[prompt,answer])
+        # demo.queue(concurrency_count=1000)
+    return demo
 
 def main():
+    llm = "glm"#从这里选择模型@@@
+    demo = create_demo(llm)
     demo.launch(server_port=9006, share=True, show_api=False)
 
 if __name__=='__main__':

@@ -18,9 +18,12 @@
     ├── kg_entity.pt                               (知识图谱向量文件)
     ├── somuut_x.pt                                (管廊运维的向量文件)
     └── somuut.txt                                 (管廊运维的文本文件)
+├── THUDM/chatglm2-6b-int4/                        (glm6b的模型文件，请前往chatglm官方下载)
 ├── config.ini                                     (密钥等配置文件)
 ├── sim.ipynb                                      (向量相似度计算的示例)
 ├── docx2txt.py                                    (docx文件转txt预处理方法)
+├── llm_api.py                                     (调用大语言模型接口的方法)
+├── requiements.txt                                (环境需要)
 └── rag.py                                         (主函数)
 ```
 

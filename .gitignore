@@ -1,1 +1,3 @@
 data/pipe*
+THUDM/chatglm2-6b-int4/*
+!THUDM/chatglm2-6b-int4/README.md
