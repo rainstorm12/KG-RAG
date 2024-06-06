@@ -16,16 +16,19 @@
 ├── img
 ├── data/
     ├── pipe/                                      (管廊标准的原始文件，这里不公开了)
+	├── config.ini                                 (密钥等配置文件)
     ├── kg_entity.pt                               (知识图谱向量文件)
     ├── somuut_x.pt                                (管廊运维的向量文件)
     └── somuut.txt                                 (管廊运维的文本文件)
+├── utils/
+    ├── sim.ipynb                                  (向量相似度计算的示例)
+    └── docx2txt.py                                (docx文件转txt预处理方法)
 ├── THUDM/chatglm2-6b-int4                         (glm2-6b的模型文件，请前往chatglm官方下载)
-├── config.ini                                     (密钥等配置文件)
-├── sim.ipynb                                      (向量相似度计算的示例)
-├── docx2txt.py                                    (docx文件转txt预处理方法)
+├── requiements.txt                                (环境配置)
 ├── llm_api.py                                     (调用大语言模型接口的方法)
-├── requiements.txt                                (环境需要)
-└── rag.py                                         (主函数)
+├── rag_bot.py                                     (检索增强类和相关函数)
+├── web_demo1.py                                   (单轮对话网页demo)
+└── web_demo2.py                                   (多轮对话网页demo)
 ```
 
 ## 实现效果
